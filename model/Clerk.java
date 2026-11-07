@@ -1,8 +1,8 @@
 package model;
 
 public class Clerk extends User {
-    public Clerk(String username, String fullName, String passwordHash, boolean approved) {
-        super(username, fullName, passwordHash, approved);
+    public Clerk(String username, String password, String fullName, boolean approved) {
+        super(username, password, fullName, approved);
     }
 
     @Override public String getRole() { return "Clerk"; }
