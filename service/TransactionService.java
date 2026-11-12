@@ -32,7 +32,7 @@ public class TransactionService {
      * 1. Check if quantity is positive (> 0).
      * 2. Find the product via productService.
      * 3. Check if available stock (product.getStockQuantity()) is sufficient.
-     *    - Throw IllegalArgumentException if insufficient stock.
+     *    - Throw ValidationException if insufficient stock.
      * 4. Deduct quantity from product stock quantity.
      * 5. Record stock movement in inventoryService with Reason.SALE and negative change.
      * 6. Create, store, and return a new Transaction object with status COMPLETED.
@@ -63,9 +63,14 @@ public class TransactionService {
 
         // 6. create a transaction object
         Transaction transaction = new Transaction(generateTransactionId(),
-                LocalDateTime.now().withNano(0), TransactionType.SALE,
-                product.getProductId(), product.getName(), soldQuantity,
-                pricePerKg, totalAmount, user.getUsername());
+                    LocalDateTime.now().withNano(0), 
+                    TransactionType.SALE,
+                    product.getProductId(), 
+                    product.getName(), 
+                    soldQuantity,
+                    pricePerKg, 
+                    totalAmount, 
+                    user.getUsername());
         transactions.add(transaction);
         return transaction;
     }
@@ -117,8 +122,32 @@ public class TransactionService {
      * 4. Update transaction status to VOID_REQUESTED
      * 5. Record voidRequestedBy username and voidReason.
      */
-    public void requestVoid(User clerk, String transactionId, String reason) {
-        /* TODO: Implement logic according to steps 1-5 above */
+    public void requestVoid(User clerk, String transactionId, String reason) throws ValidationException {
+        // 1. Check if the user is allowed to request a void.
+        if (clerk == null) {
+            throw new ValidationException("No user is signed in.");
+        }
+        if (!clerk.canRequestVoid()) {
+            throw new ValidationException("Only a clerk can request a transaction void.");
+        }
+
+        // Validate the reason before changing the transaction.
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new ValidationException("Void reason is required.");
+        }
+
+        // 2. Find the transaction.
+        Transaction transaction = findTransaction(transactionId);
+
+        // 3. Only completed transactions can be requested for void.
+        if (transaction.getStatus() != TransactionStatus.COMPLETED) {
+            throw new ValidationException("Only completed transactions can be requested for void.");
+        }
+
+        // 4-5. Save the request details and update its status.
+        transaction.setStatus(TransactionStatus.VOID_REQUESTED);
+        transaction.setVoidRequestedBy(clerk.getUsername());
+        transaction.setVoidReason(reason.trim());
     }
 
     /**
@@ -133,8 +162,31 @@ public class TransactionService {
      * 5. Update transaction status to VOIDED
      * 6. Record manager.getUsername() in voidApprovedBy
      */
-    public void approveVoid(User manager, String transactionId) {
-        /* TODO: Implement logic according to steps 1-6 above */
+    public void approveVoid(User manager, String transactionId) throws ValidationException {
+        // 1. Check if the user is allowed to approve void requests.
+        if (manager == null) {
+            throw new ValidationException("No user is signed in.");
+        }
+        if (!manager.canApproveVoids()) {
+            throw new ValidationException("Only a manager can approve void requests.");
+        }
+
+        // 2-3. Find the transaction and check its status.
+        Transaction transaction = findTransaction(transactionId);
+        if (transaction.getStatus() != TransactionStatus.VOID_REQUESTED) {
+            throw new ValidationException("Transaction has no pending void request.");
+        }
+
+        // 4. Return the shrimp to inventory when a sale is voided.
+        // InventoryService also saves the updated product stock and logs VOID_RETURN.
+        if (transaction.getType() == TransactionType.SALE) {
+            inventoryService.returnStock(manager, transaction.getProductId(),
+                    transaction.getQuantityKg(), "Approved void: " + transaction.getTransactionId());
+        }
+
+        // 5-6. Mark the transaction as voided and record the approving manager.
+        transaction.setStatus(TransactionStatus.VOIDED);
+        transaction.setVoidApprovedBy(manager.getUsername());
     }
 
     /**
@@ -144,13 +196,41 @@ public class TransactionService {
      * 3. Reset transaction status back to COMPLETED
      * 4. Clear voidRequestedBy and voidReason fields.
      */
-    public void rejectVoid(User manager, String transactionId) {
-        /* TODO: Implement logic according to steps 1-4 above */
+    public void rejectVoid(User manager, String transactionId) throws ValidationException {
+        // 1. Check if the user is allowed to reject void requests.
+        if (manager == null) {
+            throw new ValidationException("No user is signed in.");
+        }
+        if (!manager.canApproveVoids()) {
+            throw new ValidationException("Only a manager can reject void requests.");
+        }
+
+        // 2. Find the transaction and make sure it has a pending request.
+        Transaction transaction = findTransaction(transactionId);
+        if (transaction.getStatus() != TransactionStatus.VOID_REQUESTED) {
+            throw new ValidationException("Transaction has no pending void request.");
+        }
+
+        // 3-4. Reject the request and clear its request details.
+        transaction.setStatus(TransactionStatus.COMPLETED);
+        transaction.setVoidRequestedBy(null);
+        transaction.setVoidReason(null);
     }
 
-    /**
-     * TASK 6: Query and Reporting Methods
-     */
+    // Find a transaction using its ID.
+    private Transaction findTransaction(String transactionId) throws ValidationException {
+        if (transactionId == null || transactionId.trim().isEmpty()) {
+            throw new ValidationException("Transaction ID is required.");
+        }
+
+        for (Transaction transaction : transactions) {
+            if (transaction.getTransactionId().equalsIgnoreCase(transactionId.trim())) {
+                return transaction;
+            }
+        }
+
+        throw new ValidationException("Transaction not found: " + transactionId);
+    }
 
     // Return all transactions (Manager view)
     public List<Transaction> getAllTransactions() {
