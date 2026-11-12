@@ -38,8 +38,36 @@ public class TransactionService {
      * 6. Create, store, and return a new Transaction object with status COMPLETED[cite: 7, 8].
      */
     public Transaction processSale(User user, String productId, double quantityKg) {
-        /* TODO: Implement logic according to steps 1-6 above */    	
-        return null;
+        // 1. Input Validations
+        if (Double.isNaN(quantityKg) || Double.isInfinite(quantityKg) || quantityKg <= 0) {
+            throw new IllegalArgumentException("Quantity must be a valid number greater than 0.");
+        }
+        if (user == null) {
+            throw new IllegalArgumentException("No user is signed in.");
+        }
+
+        // 2. Find product
+        Product product = productService.findById(productId);
+        if (product == null) {
+            throw new IllegalArgumentException("Product not found: " + productId);
+        }
+
+        // InventoryService applies its own quantity rules and reports insufficient stock.
+        // Use the same rounded quantity in the transaction that it records in stock history.
+        double soldQuantity = Math.round(quantityKg * 100.0) / 100.0;
+        inventoryService.ensureAvailable(productId, soldQuantity);
+        double pricePerKg = product.getPricePerKg();
+        double totalAmount = Math.round(soldQuantity * pricePerKg * 100.0) / 100.0;
+
+        inventoryService.deductStock(user, productId, soldQuantity, "Sale");
+
+        // 6. create a transaction object
+        Transaction transaction = new Transaction(generateTransactionId(),
+                LocalDateTime.now().withNano(0), TransactionType.SALE,
+                product.getProductId(), product.getName(), soldQuantity,
+                pricePerKg, totalAmount, user.getUsername());
+        transactions.add(transaction);
+        return transaction;
     }
 
     /**
