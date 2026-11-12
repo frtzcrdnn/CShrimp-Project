@@ -37,19 +37,19 @@ public class TransactionService {
      * 5. Record stock movement in inventoryService with Reason.SALE and negative change.
      * 6. Create, store, and return a new Transaction object with status COMPLETED.
      */
-    public Transaction processSale(User user, String productId, double quantityKg) {
+    public Transaction processSale(User user, String productId, double quantityKg) throws ValidationException {
         // 1. Input Validations
         if (Double.isNaN(quantityKg) || Double.isInfinite(quantityKg) || quantityKg <= 0) {
-            throw new IllegalArgumentException("Quantity must be a valid number greater than 0.");
+            throw new ValidationException("Quantity must be a valid positive number.");
         }
         if (user == null) {
-            throw new IllegalArgumentException("No user is signed in.");
+            throw new ValidationException("No user is signed in.");
         }
 
         // 2. Find product
         Product product = productService.findById(productId);
         if (product == null) {
-            throw new IllegalArgumentException("Product not found: " + productId);
+            throw new ValidationException("Product not found: " + productId);
         }
 
         // InventoryService applies its own quantity rules and reports insufficient stock.
@@ -76,10 +76,37 @@ public class TransactionService {
      * 2. Validate that type is CASH_IN or CASH_OUT
      * 3. Create a Transaction object without product binding.
      * 4. Add to transaction list and return the record.
+     * @throws ValidationException 
      */
-    public Transaction processCashTransaction(User user, TransactionType type, double amount, String note) {
-        /* TODO: Implement logic according to steps 1-4 above */
-        return null;
+    public Transaction processCashTransaction(User user, TransactionType type, double amount, String note) throws ValidationException {
+        // 1-2
+        if (Double.isNaN(amount) || Double.isInfinite(amount) || amount <= 0) {
+            throw new ValidationException("Amount must be a valid positive number.");
+        }
+        if (user == null) {
+            throw new ValidationException("No user is signed in.");
+        }
+
+        if (type == null || (type != TransactionType.CASH_IN && type != TransactionType.CASH_OUT)) {
+            throw new ValidationException("Transaction must be CASH IN or CASH OUT");
+        }
+
+        // 3.
+        double rounded = Math.round(amount * 100) / 100;
+        Transaction transaction = new Transaction(
+                    generateTransactionId(),
+                    LocalDateTime.now().withNano(0),
+                    type, 
+                    null,
+                    note,
+                    0.0,
+                    0.0,
+                    rounded, 
+                    user.getUsername());
+    
+        // 4.
+        transactions.add(transaction);
+        return transaction;
     }
 
     /**
