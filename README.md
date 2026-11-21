@@ -39,7 +39,7 @@ The system ships with eight shrimp products. The manager can change this list an
 ## Requirements
  
 - JDK 17 or newer
-- JavaFX 20 or newer. The tables use `TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN`, which was added in JavaFX 20.
+- JavaFX 20 or newer.
 ## Running the program
  
 1. Clone the repository and open it as a Java project in your IDE (Eclipse, IntelliJ IDEA or VS Code).
