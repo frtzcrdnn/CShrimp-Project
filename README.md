@@ -56,7 +56,7 @@ On first launch the program creates the eight default products and a default man
 ```
 src
 ├── main
-│   └── Main                      application entry point
+│   └── Main                      application
 ├── model
 │   ├── User                      abstract base class
 │   ├── Clerk, Manager            subclasses of User
@@ -71,17 +71,8 @@ src
 │   ├── ProductService            add, edit, remove, search and save products
 │   ├── InventoryService          restock, stock deduction, low-stock checks, stock history
 │   ├── SalesService              sales, cash entries and the void workflow
-│   └── InsufficientStockException
-├── ui
-│   ├── ScreenManager             switches between screens
-│   ├── LoginScreen
-│   ├── Theme, Format, InputParser, MessageBox
-│   └── DataTable, TransactionTable, StatBox   reusable components
-└── dashboard
-    ├── Dashboard, DashboardPanel              abstract base classes
-    ├── ClerkDashboard, ManagerDashboard
-    └── SalePanel, InventoryPanel, TransactionPanel,
-        OverviewPanel, ProductPanel, ClerkActivityPanel
+│   ├── InsufficientStockException
+|   └── ValidationException
 ```
  
 ## How it works
