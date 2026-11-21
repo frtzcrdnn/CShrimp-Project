@@ -99,7 +99,5 @@ To reset the program to its default state, close it and delete the `data/` folde
 |---|---|
 | Sales, inventory, product and cash transaction modules | `SalesService`, `InventoryService`, `ProductService`, and the cash entries in `TransactionPanel` |
 | Two user types, Manager and Clerk | `Manager` and `Clerk`, both extending `User` |
-| Login, Clerk Dashboard, Manager Dashboard, Inventory and Cash/Transaction screens | `LoginScreen`, `ClerkDashboard`, `ManagerDashboard`, `InventoryPanel`, `TransactionPanel` |
-| Reusable components and window switching | `DataTable`, `TransactionTable`, `StatBox`, `ScreenManager` |
 | Persistence | Text files in `data/` |
 | Error handling | `InsufficientStockException` and the validation messages shown by `MessageBox` |
