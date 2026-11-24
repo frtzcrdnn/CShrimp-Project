@@ -1,10 +1,14 @@
 package model;
 
+/**
+ * Represents a Manager with full administrative privileges over products,
+ * inventory restocking, void approvals, financial reports, and clerk accounts.
+ */
 public class Manager extends User {
 
-    public Manager(String username, String password, String fullName, boolean approved) {
+	public Manager(String username, String password, String fullName, boolean approved) {
         super(username, password, fullName, approved);
-	}
+    }
 	
     @Override
 	public String getRole() { return "Manager"; }
