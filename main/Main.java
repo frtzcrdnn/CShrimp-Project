@@ -1,11 +1,14 @@
 package main;
 
+import dashboard.Dashboard;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.layout.Region;
 import javafx.stage.Stage;
 import model.User;
 import service.ShrimpSystem;
+import ui.LoginScreen;
+import ui.Theme;
 
 /**
  * Entry point. It only starts the system and switches between screens:
@@ -22,9 +25,14 @@ public class Main extends Application {
         system = new ShrimpSystem();
 
         scene = new Scene(new Region(), 1200, 750);
+        if (!Theme.stylesheet().isEmpty()) {
+            scene.getStylesheets().add(Theme.stylesheet());
+        }
         showLogin();
 
         stage.setTitle("SHRIMP - Shrimp Processing Management System");
+        stage.setMinWidth(1000);
+        stage.setMinHeight(640);
         stage.setScene(scene);
         stage.show();
     }

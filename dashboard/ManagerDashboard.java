@@ -1,12 +1,19 @@
-package main;
+package dashboard;
 
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import model.Clerk;
 import model.Product;
@@ -14,13 +21,14 @@ import model.Transaction;
 import model.User;
 import service.ShrimpSystem;
 import service.TransactionService;
+import ui.AccountPane;
+import ui.InventoryPane;
+import ui.ProductPane;
+import ui.Theme;
+import ui.TransactionPane;
 
 /**
- * Manager Dashboard. Tabs: Overview, Products, Inventory, Transactions.
- *
- * The Overview shows total sales, low-stock items, recent transactions and the
- * sales history of every clerk. The manager can open any clerk's dashboard
- * (view only) from there.
+ * Manager Dashboard. Tabs: Overview, Products, Inventory, Transactions, Accounts.
  */
 public class ManagerDashboard extends Dashboard {
 
@@ -31,7 +39,6 @@ public class ManagerDashboard extends Dashboard {
     private final ObservableList<ClerkSale> clerkData = FXCollections.observableArrayList();
     private TableView<ClerkSale> clerkTable;
 
-    /** One row of the "Clerk Sales History" table. */
     private static class ClerkSale {
         final Clerk clerk;
         final int salesCount;
@@ -47,14 +54,13 @@ public class ManagerDashboard extends Dashboard {
     }
 
     public ManagerDashboard(ShrimpSystem system, User user, Runnable onLogout) {
-        super(system, user, "SHRIMP - Manager Dashboard", onLogout);
+        super(system, user, "Manager Console", true, onLogout);
         buildTabs();
         refreshAll();
     }
 
     @Override
     protected void buildTabs() {
-        // every pane asks this dashboard to refresh the other tabs when it changes something
         Runnable changed = this::refreshAll;
 
         ProductPane productPane = new ProductPane(system.getProductService(), system.getInventoryService(),
@@ -63,16 +69,17 @@ public class ManagerDashboard extends Dashboard {
                 () -> user, changed);
         TransactionPane transactionPane = new TransactionPane(system.getProductService(),
                 system.getInventoryService(), system.getTransactionService(), () -> user, changed);
+        AccountPane accountPane = new AccountPane(system.getAuthenticationService(), () -> user, changed);
 
-        addTab("Overview", buildOverview(), this::refreshOverview);
-        addTab("Products", productPane, productPane::refresh);
-        addTab("Inventory", inventoryPane, inventoryPane::refresh);
-        addTab("Transactions", transactionPane, transactionPane::refresh);
+        addTab("Overview", "Sales, stock and clerk activity at a glance.", buildOverview(), this::refreshOverview);
+        addTab("Products", "Browse the product list. Click a product for its details.", productPane, productPane::refresh);
+        addTab("Inventory", "Stock levels, restocking and the stock history.", inventoryPane, inventoryPane::refresh);
+        addTab("Transactions", "Record sales, manage cash wallet and approve/reject voids.",
+                transactionPane, transactionPane::refresh);
+        addTab("Accounts", "Approve, create and manage clerk employee accounts.", accountPane, accountPane::refresh);
     }
 
-    // ---------- OVERVIEW TAB ----------
-
-    private VBox buildOverview() {
+    private Node buildOverview() {
         totalSalesLabel = new Label();
         salesCountLabel = new Label();
         balanceLabel = new Label();
@@ -80,38 +87,34 @@ public class ManagerDashboard extends Dashboard {
         outOfStockLabel = new Label();
         pendingLabel = new Label();
 
-        HBox cards = new HBox(10,
-                statCard("Total Sales", totalSalesLabel, "#5cb85c"),
-                statCard("Completed Sales", salesCountLabel, "#5bc0de"),
-                statCard("Cash Balance", balanceLabel, "#d9534f"),
-                statCard("Low-Stock Items", lowStockLabel, "#f0ad4e"),
-                statCard("Out of Stock", outOfStockLabel, "#d9534f"),
-                statCard("Pending Voids", pendingLabel, "#f0ad4e"));
+        GridPane cards = Theme.statGrid(3,
+                statCard("Total sales", totalSalesLabel, Theme.OK),
+                statCard("Completed sales", salesCountLabel, Theme.DEEP),
+                statCard("Cash balance", balanceLabel, Theme.CRIMSON),
+                statCard("Low-stock items", lowStockLabel, Theme.WARN),
+                statCard("Out of stock", outOfStockLabel, Theme.BAD),
+                statCard("Pending voids", pendingLabel, Theme.WARN));
 
         TableView<Product> lowStockTable = buildLowStockTable(lowStockData);
         TableView<Transaction> recentTable = buildTransactionTable(recentData);
-        VBox left = new VBox(6, sectionTitle("Low-Stock Items"), lowStockTable);
-        VBox right = new VBox(6, sectionTitle("Recent Transactions"), recentTable);
-        VBox.setVgrow(lowStockTable, Priority.ALWAYS);
-        VBox.setVgrow(recentTable, Priority.ALWAYS);
+        VBox left = Theme.panel("Low-stock items", lowStockTable);
+        VBox right = Theme.panel("Recent transactions", recentTable);
         HBox.setHgrow(left, Priority.ALWAYS);
         HBox.setHgrow(right, Priority.ALWAYS);
-        left.setPrefWidth(400);
-        right.setPrefWidth(600);
-        HBox middle = new HBox(12, left, right);
+        left.setPrefWidth(340);
+        right.setPrefWidth(540);
+        HBox middle = new HBox(16, left, right);
 
-        VBox root = new VBox(12, cards, middle, buildClerkSection());
-        VBox.setVgrow(middle, Priority.ALWAYS);
-        root.setPadding(new Insets(12));
-        return root;
+        VBox root = new VBox(18, cards, middle, buildClerkSection());
+        root.setPadding(new Insets(0, 4, 4, 0));
+        return Theme.scroll(root);
     }
 
-    // the clerk sales history + the button that opens a clerk's dashboard
     private VBox buildClerkSection() {
         clerkTable = new TableView<>(clerkData);
         clerkTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         clerkTable.setPlaceholder(new Label("No clerks yet."));
-        clerkTable.setPrefHeight(130);
+        clerkTable.setPrefHeight(150);
 
         TableColumn<ClerkSale, String> nameCol = new TableColumn<>("Clerk");
         nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().clerk.getFullName()));
@@ -121,28 +124,27 @@ public class ManagerDashboard extends Dashboard {
         userCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().clerk.getUsername()));
         userCol.setPrefWidth(120);
 
-        TableColumn<ClerkSale, String> countCol = new TableColumn<>("Completed sales");
-        countCol.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().salesCount)));
-        countCol.setPrefWidth(130);
-
-        TableColumn<ClerkSale, String> totalCol = new TableColumn<>("Total sales");
-        totalCol.setCellValueFactory(c -> new SimpleStringProperty(peso(c.getValue().salesTotal)));
-        totalCol.setPrefWidth(140);
-
-        TableColumn<ClerkSale, String> pendingCol = new TableColumn<>("Pending void requests");
-        pendingCol.setCellValueFactory(c -> new SimpleStringProperty(String.valueOf(c.getValue().pendingVoids)));
+        TableColumn<ClerkSale, Integer> countCol = Theme.intColumn(
+                "Completed sales", c -> c.salesCount, 130);
+        TableColumn<ClerkSale, Double> totalCol = Theme.doubleColumn(
+                "Total sales", c -> c.salesTotal, Theme::peso, 140);
+        TableColumn<ClerkSale, Integer> pendingCol = Theme.intColumn(
+                "Pending voids", c -> c.pendingVoids, 130);
 
         clerkTable.getColumns().addAll(nameCol, userCol, countCol, totalCol, pendingCol);
 
-        Button viewBtn = new Button("View Clerk Dashboard");
+        Button viewBtn = new Button("View clerk dashboard");
+        viewBtn.getStyleClass().add("btn-secondary");
         viewBtn.setOnAction(e -> openClerkDashboard());
         viewBtn.disableProperty().bind(clerkTable.getSelectionModel().selectedItemProperty().isNull());
 
-        HBox top = new HBox(12, sectionTitle("Clerk Sales History"), viewBtn);
-        return new VBox(6, top, clerkTable);
+        Label hint = Theme.mutedLabel("Select a clerk to open their dashboard (view only).");
+        HBox actions = Theme.spacerRow(hint, viewBtn);
+
+        VBox body = new VBox(10, clerkTable, actions);
+        return Theme.panel("Clerk sales history", body);
     }
 
-    // opens the selected clerk's dashboard in its own window (view only)
     private void openClerkDashboard() {
         ClerkSale selected = clerkTable.getSelectionModel().getSelectedItem();
         if (selected == null) {
@@ -154,7 +156,12 @@ public class ManagerDashboard extends Dashboard {
         if (getScene() != null) {
             window.initOwner(getScene().getWindow());
         }
-        window.setScene(new Scene(view, 950, 600));
+        Scene viewScene = new Scene(view, 1050, 650);
+        if (!Theme.stylesheet().isEmpty()) {
+            viewScene.getStylesheets().add(Theme.stylesheet());
+        }
+        window.setScene(viewScene);
+        registerChildWindow(window);
         window.show();
     }
 
@@ -171,7 +178,6 @@ public class ManagerDashboard extends Dashboard {
         lowStockData.setAll(system.getInventory().getLowStockItems());
         recentData.setAll(system.newestFirst(transactions.getAllTransactions(), 10));
 
-        // keep the selected clerk selected after the table reloads
         String selectedUsername = null;
         ClerkSale selected = clerkTable.getSelectionModel().getSelectedItem();
         if (selected != null) {
