@@ -1,25 +1,34 @@
 package service;
 
 import model.Product;
-import java.io.*;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
- * Handles all the product operations (add, edit, delete, search)
- * and saves them to a text file. It does not need InventoryService,
- * so it still works even if the inventory part is empty.
- *
- * Each product is saved as one line, separated by "|":
- * id|name|pricePerKg|description|stockQuantity
+ * Manages the shrimp product catalog (add, update, archive/delete, search)
+ * and persists records to {@code data/products.txt}.
  */
 public class ProductService {
 
     private static final String FILE_NAME = "data/products.txt";
     private static final String SEPARATOR = "|";
+    private static final double MAX_PRICE = 10_000_000;
+    private static final double MAX_STOCK = 100_000;
 
-    private ArrayList<Product> products = new ArrayList<>();
-    private String filePath;
+    private final List<Product> products = new ArrayList<>();
+    private final String filePath;
+    private int highestIdNumber = 0;
+    private Predicate<String> historyCheck;
 
     public ProductService() {
         this(FILE_NAME);
@@ -27,27 +36,59 @@ public class ProductService {
 
     public ProductService(String filePath) {
         this.filePath = filePath;
-        loadProducts();
-
-        // if there is no saved data yet, use the default shrimp products
-        if (products.isEmpty()) {
+        File file = new File(filePath);
+        if (!file.exists()) {
             addDefaultProducts();
             saveProducts();
+        } else {
+            loadProducts();
+        }
+    }
+
+    /**
+     * Registers a callback used to check whether a product has historical
+     * stock movements or transactions before deleting it.
+     */
+    public void setHistoryCheck(Predicate<String> historyCheck) {
+        this.historyCheck = historyCheck;
+    }
+
+    /**
+     * Ensures auto-generated product IDs remain strictly higher than any ID
+     * referenced in historical logs or transactions.
+     */
+    public void ensureNextIdAbove(String productId) {
+        int num = parseIdNumber(productId);
+        if (num > highestIdNumber) {
+            highestIdNumber = num;
         }
     }
 
     // ---------- GET / SEARCH ----------
 
+    /** @return defensive copy of all active products in the catalog */
     public List<Product> getAllProducts() {
-        return products;
+        List<Product> active = new ArrayList<>();
+        for (Product p : products) {
+            if (p.isActive()) {
+                active.add(p);
+            }
+        }
+        return active;
+    }
+
+    /** @return defensive copy of all products, including archived items */
+    public List<Product> getAllProductsIncludingArchived() {
+        return new ArrayList<>(products);
     }
 
     public Product findById(String productId) {
         if (productId == null) {
             return null;
         }
+        String target = productId.trim();
         for (Product p : products) {
-            if (p.getProductId().equalsIgnoreCase(productId.trim())) {
+            if (p.getProductId().equalsIgnoreCase(target)) {
                 return p;
             }
         }
@@ -55,15 +96,16 @@ public class ProductService {
     }
 
     public List<Product> searchByName(String keyword) {
-        ArrayList<Product> results = new ArrayList<>();
-
+        List<Product> results = new ArrayList<>();
         if (keyword == null || keyword.trim().isEmpty()) {
-            results.addAll(products);
-            return results;
+            return getAllProducts();
         }
 
         String k = keyword.trim().toLowerCase();
         for (Product p : products) {
+            if (!p.isActive()) {
+                continue;
+            }
             if (p.getName().toLowerCase().contains(k)
                     || p.getProductId().toLowerCase().contains(k)
                     || p.getDescription().toLowerCase().contains(k)) {
@@ -74,8 +116,12 @@ public class ProductService {
     }
 
     public boolean nameExists(String name) {
+        if (name == null) {
+            return false;
+        }
+        String cleaned = clean(name.trim());
         for (Product p : products) {
-            if (p.getName().equalsIgnoreCase(name.trim())) {
+            if (p.isActive() && p.getName().equalsIgnoreCase(cleaned)) {
                 return true;
             }
         }
@@ -86,17 +132,26 @@ public class ProductService {
 
     public Product addProduct(String name, double pricePerKg, String description, double initialStock) {
         checkInputs(name, pricePerKg, description);
+        double cleanPrice = validatePrice(pricePerKg);
+        double cleanStock = validateStock(initialStock);
 
-        if (initialStock < 0) {
-            throw new IllegalArgumentException("Stock cannot be negative.");
-        }
-        if (nameExists(name)) {
-            throw new IllegalArgumentException("A product named \"" + name.trim() + "\" already exists.");
+        String cleanName = clean(name.trim());
+        String cleanDesc = clean(description.trim());
+
+        if (nameExists(cleanName)) {
+            throw new ValidationException("A product named \"" + cleanName + "\" already exists.");
         }
 
-        Product p = new Product(getNextId(), name.trim(), pricePerKg, description.trim(), initialStock);
+        String newId = getNextId();
+        Product p = new Product(newId, cleanName, cleanPrice, cleanDesc, cleanStock, true);
+        highestIdNumber = Math.max(highestIdNumber, parseIdNumber(newId));
         products.add(p);
-        saveProducts();
+        try {
+            saveProducts();
+        } catch (RuntimeException e) {
+            products.remove(p);
+            throw e;
+        }
         return p;
     }
 
@@ -106,83 +161,170 @@ public class ProductService {
 
     // ---------- UPDATE ----------
 
-    // updates name, price and description (stock stays the same)
     public Product updateProduct(String productId, String name, double pricePerKg, String description) {
         Product p = findById(productId);
         if (p == null) {
-            throw new IllegalArgumentException("Product not found: " + productId);
+            throw new ValidationException("Product not found: " + productId);
         }
         return updateProduct(productId, name, pricePerKg, description, p.getStockQuantity());
     }
 
-    // same as above, but also sets the stock (used to enter the initial stock)
     public Product updateProduct(String productId, String name, double pricePerKg,
                                  String description, double stockQuantity) {
         Product p = findById(productId);
         if (p == null) {
-            throw new IllegalArgumentException("Product not found: " + productId);
+            throw new ValidationException("Product not found: " + productId);
         }
 
         checkInputs(name, pricePerKg, description);
-        if (stockQuantity < 0) {
-            throw new IllegalArgumentException("Stock cannot be negative.");
-        }
+        double cleanPrice = validatePrice(pricePerKg);
+        double cleanStock = validateStock(stockQuantity);
 
-        // the name must not be used by a different product
+        String cleanName = clean(name.trim());
+        String cleanDesc = clean(description.trim());
+
         for (Product other : products) {
-            if (other != p && other.getName().equalsIgnoreCase(name.trim())) {
-                throw new IllegalArgumentException("Another product is already named \"" + name.trim() + "\".");
+            if (other != p && other.isActive() && other.getName().equalsIgnoreCase(cleanName)) {
+                throw new ValidationException("Another product is already named \"" + cleanName + "\".");
             }
         }
 
-        p.setName(name.trim());
-        p.setPricePerKg(pricePerKg);
-        p.setDescription(description.trim());
-        p.setStockQuantity(stockQuantity);
-        saveProducts();
+        String oldName = p.getName();
+        double oldPrice = p.getPricePerKg();
+        String oldDesc = p.getDescription();
+        double oldStock = p.getStockQuantity();
+
+        p.setName(cleanName);
+        p.setPricePerKg(cleanPrice);
+        p.setDescription(cleanDesc);
+        p.setStockQuantity(cleanStock);
+        try {
+            saveProducts();
+        } catch (RuntimeException e) {
+            p.setName(oldName);
+            p.setPricePerKg(oldPrice);
+            p.setDescription(oldDesc);
+            p.setStockQuantity(oldStock);
+            throw e;
+        }
         return p;
     }
 
-    // ---------- DELETE ----------
+    // ---------- DELETE / ARCHIVE ----------
 
+    /**
+     * Permanently removes a product only if it has zero stock and no historical
+     * transactions or stock movements. Products with history should be archived instead.
+     */
     public void removeProduct(String productId) {
         Product p = findById(productId);
         if (p == null) {
-            throw new IllegalArgumentException("Product not found: " + productId);
+            throw new ValidationException("Product not found: " + productId);
         }
+        if (p.getStockQuantity() > 0) {
+            throw new ValidationException("Cannot delete \"" + p.getName()
+                    + "\" while " + String.format("%.2f", p.getStockQuantity())
+                    + " kg is still in stock.");
+        }
+        if (historyCheck != null && historyCheck.test(p.getProductId())) {
+            throw new ValidationException("Cannot delete \"" + p.getName()
+                    + "\" because it has past sales or inventory history. Archive it instead.");
+        }
+
+        int index = products.indexOf(p);
         products.remove(p);
-        saveProducts();
+        try {
+            saveProducts();
+        } catch (RuntimeException e) {
+            products.add(index, p);
+            throw e;
+        }
+    }
+
+    /**
+     * Archives a zero-stock product so it is hidden from active sales while preserving
+     * historical transactions, pending voids, and inventory logs.
+     */
+    public void archiveProduct(String productId) {
+        Product p = findById(productId);
+        if (p == null) {
+            throw new ValidationException("Product not found: " + productId);
+        }
+        if (p.getStockQuantity() > 0) {
+            throw new ValidationException("Cannot archive \"" + p.getName()
+                    + "\" while " + String.format("%.2f", p.getStockQuantity())
+                    + " kg is still in stock.");
+        }
+        boolean oldActive = p.isActive();
+        p.setActive(false);
+        try {
+            saveProducts();
+        } catch (RuntimeException e) {
+            p.setActive(oldActive);
+            throw e;
+        }
     }
 
     // ---------- HELPER METHODS ----------
 
     private void checkInputs(String name, double price, String description) {
         if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("Product name is required.");
+            throw new ValidationException("Product name is required.");
         }
-        if (price <= 0) {
-            throw new IllegalArgumentException("Price per kg must be greater than 0.");
+        if (Double.isNaN(price) || Double.isInfinite(price) || price <= 0) {
+            throw new ValidationException("Price per kg must be a valid number greater than 0.");
         }
         if (description == null || description.trim().isEmpty()) {
-            throw new IllegalArgumentException("Description is required.");
+            throw new ValidationException("Description is required.");
         }
     }
 
-    // makes IDs like P001, P002, P003...
-    // public so the Add Product window can show the ID before saving
+    private double validatePrice(double price) {
+        if (Double.isNaN(price) || Double.isInfinite(price) || price <= 0) {
+            throw new ValidationException("Price per kg must be a valid number greater than 0.");
+        }
+        double rounded = Math.round(price * 100.0) / 100.0;
+        if (rounded < 0.01) {
+            throw new ValidationException("Price per kg must be at least Php 0.01.");
+        }
+        if (rounded > MAX_PRICE) {
+            throw new ValidationException("Price per kg cannot exceed Php 10,000,000.");
+        }
+        return rounded;
+    }
+
+    private double validateStock(double stock) {
+        if (Double.isNaN(stock) || Double.isInfinite(stock) || stock < 0) {
+            throw new ValidationException("Stock must be a valid number (0 or higher).");
+        }
+        double rounded = Math.round(stock * 100.0) / 100.0;
+        if (rounded > MAX_STOCK) {
+            throw new ValidationException("Stock cannot exceed 100,000 kg.");
+        }
+        return rounded;
+    }
+
+    /** Returns the next monotonic product ID (e.g., P001, P009) without reusing deleted IDs. */
     public String getNextId() {
-        int highest = 0;
+        int highest = highestIdNumber;
         for (Product p : products) {
-            try {
-                int number = Integer.parseInt(p.getProductId().substring(1));
-                if (number > highest) {
-                    highest = number;
-                }
-            } catch (Exception e) {
-                // ignore IDs that are not in the P### format
+            int num = parseIdNumber(p.getProductId());
+            if (num > highest) {
+                highest = num;
             }
         }
         return String.format("P%03d", highest + 1);
+    }
+
+    private static int parseIdNumber(String id) {
+        if (id == null || id.length() < 2) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(id.trim().substring(1));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private void addDefaultProducts() {
@@ -197,75 +339,77 @@ public class ProductService {
     }
 
     private void addDefault(String name, double price, String description) {
-        products.add(new Product(getNextId(), name, price, description, 0));
+        String id = getNextId();
+        highestIdNumber = parseIdNumber(id);
+        products.add(new Product(id, name, price, description, 0, true));
     }
 
     // ---------- SAVE AND LOAD FILE ----------
 
-    // saves all products to the file (call this again after the stock changes)
-    public void saveProducts() {
+    public synchronized void saveProducts() {
+        File file = new File(filePath);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+        File temp = new File(filePath + ".tmp");
         try {
-            File file = new File(filePath);
-            if (file.getParentFile() != null) {
-                file.getParentFile().mkdirs();
+            try (PrintWriter writer = new PrintWriter(new FileWriter(temp))) {
+                for (Product p : products) {
+                    writer.println(p.getProductId() + SEPARATOR
+                            + clean(p.getName()) + SEPARATOR
+                            + p.getPricePerKg() + SEPARATOR
+                            + clean(p.getDescription()) + SEPARATOR
+                            + p.getStockQuantity() + SEPARATOR
+                            + p.isActive());
+                }
+                if (writer.checkError()) {
+                    throw new IOException("Write failed while saving products.");
+                }
             }
-
-            PrintWriter writer = new PrintWriter(new FileWriter(file));
-            for (Product p : products) {
-                String line = p.getProductId() + SEPARATOR
-                        + clean(p.getName()) + SEPARATOR
-                        + p.getPricePerKg() + SEPARATOR
-                        + clean(p.getDescription()) + SEPARATOR
-                        + p.getStockQuantity();
-                writer.println(line);
-            }
-            writer.close();
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
+            temp.delete();
             throw new RuntimeException("Could not save products: " + e.getMessage());
         }
     }
 
     private void loadProducts() {
         products.clear();
-
         File file = new File(filePath);
         if (!file.exists()) {
             return;
         }
 
-        try {
-            BufferedReader reader = new BufferedReader(new FileReader(file));
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) {
                     continue;
                 }
-
-                // "\\|" because split() treats | as a special symbol
                 String[] parts = line.split("\\|", -1);
                 if (parts.length < 5) {
-                    continue; // skip broken lines
+                    continue;
                 }
-
                 try {
-                    String id = parts[0];
+                    String id = parts[0].trim();
                     String name = parts[1];
                     double price = Double.parseDouble(parts[2]);
                     String description = parts[3];
                     double stock = Double.parseDouble(parts[4]);
-                    products.add(new Product(id, name, price, description, stock));
+                    boolean active = parts.length < 6 || Boolean.parseBoolean(parts[5].trim());
+
+                    products.add(new Product(id, name, price, description, stock, active));
+                    highestIdNumber = Math.max(highestIdNumber, parseIdNumber(id));
                 } catch (NumberFormatException e) {
-                    // skip lines with wrong numbers
+                    // skip corrupted row without wiping valid rows
                 }
             }
-            reader.close();
         } catch (IOException e) {
             throw new RuntimeException("Could not load products: " + e.getMessage());
         }
     }
 
-    // removes "|" and line breaks so they don't break the file format
-    private String clean(String text) {
+    private static String clean(String text) {
         return text.replace("|", "/").replace("\n", " ").replace("\r", " ");
     }
 }
