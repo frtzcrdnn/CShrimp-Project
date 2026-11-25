@@ -328,7 +328,7 @@ public class ProductService {
     }
 
     private void addDefaultProducts() {
-        addDefault("CHLSO - Cooked Head-Less Shell-On", 700, "Cooked shrimp with head removed and shell retained");
+        addDefault("CHLSO - Cooked Head-Less Shell-On", 730, "Cooked shrimp with head removed and shell retained");
         addDefault("CHOSO - Cooked Head-On Shell-On", 700, "Cooked shrimp with head and shell retained");
         addDefault("FHOSO - Fresh Head-On Shell-On", 570, "Raw whole shrimp with head and shell intact");
         addDefault("FHLSO - Fresh Head-Less Shell-On", 590, "Raw shrimp with head removed but shell kept on");
