@@ -24,10 +24,10 @@ public class Product {
 	public void setName(String name) { this.name = name; }
 	public double getPricePerKg() { return pricePerKg; }
 	public void setPricePerKg(double pricePerKg) { this.pricePerKg = pricePerKg; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public double getStockQuantity() { return stockQuantity; }
-    public void setStockQuantity(double stockQuantity) { this.stockQuantity = stockQuantity; }
+  public String getDescription() { return description; }
+  public void setDescription(String description) { this.description = description; }
+  public double getStockQuantity() { return stockQuantity; }
+  public void setStockQuantity(double stockQuantity) { this.stockQuantity = stockQuantity; }
 
 	
 	
