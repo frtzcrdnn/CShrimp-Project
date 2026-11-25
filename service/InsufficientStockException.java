@@ -2,8 +2,8 @@ package service;
 
 /**
  * Thrown when a sale asks for more kilograms than are in stock.
- * It extends IllegalArgumentException, so a normal
- * "catch (IllegalArgumentException e)" still catches it, but the Sale screen
+ * It extends ValidationException, so a normal
+ * "catch (ValidationException e)" still catches it, but the Sale screen
  * can catch it first to show a special stock warning.
  */
 
