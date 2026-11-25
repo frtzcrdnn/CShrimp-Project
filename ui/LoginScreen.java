@@ -27,7 +27,7 @@ import service.ValidationException;
 import java.util.function.Consumer;
 
 /**
- * Welcome / Login screen. Authenticates credentials via {@link ShrimpSystem}
+ * Welcome / Login screen. Authenticates credentials used by ShrimpSystem
  * and allows prospective clerks to register an account for Manager approval.
  */
 public class LoginScreen extends StackPane {

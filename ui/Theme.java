@@ -47,8 +47,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Centralized visual theme, asset loader, dialog styling, and shared UI helpers
- * for the entire CSHRIMP application.
+ * Centralized visual theme, asset loader, dialog styling, and shared UI helpers for the entire CSHRIMP application.
  */
 public final class Theme {
 

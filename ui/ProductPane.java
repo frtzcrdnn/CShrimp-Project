@@ -34,7 +34,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
- * Product catalog screen (Manager only). Displays visual product cards with photos,
+ * Product catalog screen (for Manager only). Displays visual product cards with photos,
  * search filtering, and add / edit / archive / delete dialogs.
  */
 public class ProductPane extends BorderPane {

@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 
 /**
  * Clerk Account Management screen (Manager only).
- * Supports adding clerks, approving/deactivating accounts, and resetting passwords.
+ * For adding clerks, approving/deactivating accounts, and resetting passwords.
  */
 public class AccountPane extends VBox {
 

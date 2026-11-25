@@ -42,9 +42,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Base class of the two dashboards ({@link ManagerDashboard} and {@link ClerkDashboard}).
- * Provides the role-specific sidebar or topbar chrome, tab navigation, refresh hooks,
- * and secondary window cleanup on logout.
+ * Base class of the two dashboards (Clerk & Manager)
+ * Provides the role-specific sidebar or topbar chrome, tab navigation, refresh hooks, and secondary window cleanup on logout.
  */
 public abstract class Dashboard extends BorderPane {
 

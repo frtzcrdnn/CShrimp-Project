@@ -11,9 +11,8 @@ import ui.LoginScreen;
 import ui.Theme;
 
 /**
- * Entry point. It only starts the system and switches between screens:
+ * The Starting Point. Main only starts the system and switches between screens:
  * Login -> (Manager or Clerk) Dashboard -> Log Out -> Login.
- * Everything else lives in ShrimpSystem, the dashboards and the screen panes.
  */
 public class Main extends Application {
 
