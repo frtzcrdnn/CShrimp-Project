@@ -8,7 +8,7 @@ package service;
  */
 
 
-public class InsufficientStockException extends IllegalArgumentException {
+public class InsufficientStockException extends ValidationException {
     private static final long serialVersionUID = 1L;
 
     private final String productName;
