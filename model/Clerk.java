@@ -1,15 +1,26 @@
 package model;
 
+/**
+ * Represents a Clerk who processes sales, checks inventory, reports low stock,
+ * and requests transaction voids for manager approval.
+ */
 public class Clerk extends User {
     public Clerk(String username, String password, String fullName, boolean approved) {
         super(username, password, fullName, approved);
     }
 
-    @Override public String getRole() { return "Clerk"; }
-    @Override public boolean canManageProducts() { return false; }
-    @Override public boolean canRestock() { return false; }
-    @Override public boolean canApproveVoids() { return false; }
-    @Override public boolean canViewAllTransactions() { return false; }
-    @Override public boolean canManageAccounts() { return false; }
-    @Override public boolean canRequestVoid() { return true; }	
+    @Override 
+    public String getRole() { return "Clerk"; }
+    @Override 
+    public boolean canManageProducts() { return false; }
+    @Override 
+    public boolean canRestock() { return false; }
+    @Override 
+    public boolean canApproveVoids() { return false; }
+    @Override 
+    public boolean canViewAllTransactions() { return false; }
+    @Override 
+    public boolean canManageAccounts() { return false; }
+    @Override 
+    public boolean canRequestVoid() { return true; }	
 }
